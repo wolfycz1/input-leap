@@ -129,9 +129,11 @@ std::unique_ptr<ISocketMultiplexerJob> SecureSocket::newJob()
 void
 SecureSocket::secureConnect()
 {
+    LOG_DEBUG2("SecureSocket::secureConnect() (async setup) called");
     setJob(std::make_unique<TSocketMultiplexerMethodJob>([this](auto j, auto r, auto w, auto e)
                                                          { return serviceConnect(j, r, w, e); },
                                                          getSocket(), isReadable(), isWritable()));
+    LOG_DEBUG2("secureConnect(): job scheduled");
 }
 
 void
@@ -483,27 +485,38 @@ SecureSocket::secureAccept(int socket)
 int
 SecureSocket::secureConnect(int socket)
 {
+    LOG_DEBUG2("SecureSocket::secureConnect(): job scheduled");
     // note that load_certificates acquires ssl_mutex_
     if (!load_certificates(inputleap::DataDirectories::ssl_certificate_path())) {
         LOG_ERR("could not load client certificates");
+        LOG_DEBUG2("Certificate loading failed (continuing, but likely fatal later)");
         // FIXME: this is fatal error, but we current don't disconnect because whole logic in this
         // function needs to be cleaned up
+    } else {
+        LOG_DEBUG2("Certificates loaded successfully");
     }
 
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
+    LOG_DEBUG2("ssl_mutex_ acquired");
 
     createSSL();
+    LOG_DEBUG2("SSL object created");
 
     // attach the socket descriptor
     SSL_set_fd(m_ssl->m_ssl, socket);
+    LOG_DEBUG2("SSL_set_fd done");
 
     LOG_DEBUG2("connecting secure socket");
+    LOG_DEBUG2("Calling SSL_connect()");
     int r = SSL_connect(m_ssl->m_ssl);
+    LOG_DEBUG2("SSL_connect() returned %d", r);
 
     checkResult(r, secure_connect_retry_);
+    LOG_DEBUG2("checkResult → retry=%d, fatal=%d", secure_connect_retry_, isFatal());
 
     if (isFatal()) {
         LOG_ERR("failed to connect secure socket");
+        LOG_DEBUG2("Fatal SSL error → aborting connect");
         secure_connect_retry_ = 0;
         return -1;
     }
@@ -511,6 +524,7 @@ SecureSocket::secureConnect(int socket)
     // If we should retry, not ready and return 0
     if (secure_connect_retry_ > 0) {
         LOG_DEBUG2("retry connect secure socket");
+        LOG_DEBUG2("SSL not ready → retrying (retry=%d)", secure_connect_retry_);
         m_secureReady = false;
         inputleap::this_thread_sleep(s_retryDelay);
         return 0;
@@ -519,19 +533,25 @@ SecureSocket::secureConnect(int socket)
     secure_connect_retry_ = 0;
     // No error, set ready, process and return ok
     m_secureReady = true;
+    LOG_DEBUG2("SSL handshake complete, verifying peer certificate");
     if (verify_peer_certificate(inputleap::DataDirectories::trusted_servers_ssl_fingerprints_path())) {
         LOG_INFO("connected to secure socket");
+        LOG_DEBUG2("Peer certificate verification succeeded");
     }
     else {
         LOG_ERR("failed to verify server certificate fingerprint");
+        LOG_DEBUG2("Peer verification failed → disconnecting");
         disconnect();
         return -1; // Fingerprint failed, error
     }
     LOG_DEBUG2("connected secure socket");
+    LOG_DEBUG2("Secure socket fully connected");
     if (CLOG->getFilter() >= kDEBUG1) {
+        LOG_DEBUG2("Showing secure cipher info");
         showSecureCipherInfo();
     }
     showSecureConnectInfo();
+    LOG_DEBUG2("Connection info displayed");
     return 1;
 }
 
@@ -711,6 +731,8 @@ bool SecureSocket::verify_peer_certificate(const inputleap::fs::path& fingerprin
 MultiplexerJobStatus SecureSocket::serviceConnect(ISocketMultiplexerJob* job,
                                                   bool read, bool write, bool error)
 {
+    LOG_DEBUG2("SecureSocket::serviceConnect() called: job=%p, read=%d, write=%d, error=%d",
+               job, read, write, error);
     (void) job;
     (void) read;
     (void) write;
@@ -725,18 +747,23 @@ MultiplexerJobStatus SecureSocket::serviceConnect(ISocketMultiplexerJob* job,
     status = secureConnect(getSocket()->m_fd);
 #endif
 
+    LOG_DEBUG2("secureConnect() returned status=%d", status);
+
     // If status < 0, error happened
     if (status < 0) {
+        LOG_DEBUG2("serviceConnect: fatal error → stopping job");
         return {false, {}};
     }
 
     // If status > 0, success
     if (status > 0) {
+        LOG_DEBUG2("serviceConnect: success → sending DATA_SOCKET_SECURE_CONNECTED");
         sendEvent(EventType::DATA_SOCKET_SECURE_CONNECTED);
         return newJobOrStopServicing();
     }
 
     // Retry case
+    LOG_DEBUG2("serviceConnect: retry → scheduling another attempt");
     return {
         true,
         std::make_unique<TSocketMultiplexerMethodJob>([this](auto j, auto r, auto w, auto e)
