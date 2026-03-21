@@ -42,13 +42,21 @@ std::unique_ptr<IDataSocket>
     TCPSocketFactory::create(IArchNetwork::EAddressFamily family,
                              ConnectionSecurityLevel security_level) const
 {
+    LOG_DEBUG2("TCPSocketFactory::create() called, family=%d, security_level=%d",
+               family, static_cast<int>(security_level));
     if (security_level != ConnectionSecurityLevel::PLAINTEXT) {
+        LOG_DEBUG2("Creating SecureSocket for security_level=%d", static_cast<int>(security_level));
         auto secure_socket = std::make_unique<SecureSocket>(m_events, m_socketMultiplexer, family,
                                                             security_level);
+        LOG_DEBUG2("SecureSocket constructed: %p", secure_socket.get());
         secure_socket->initSsl(false);
+        LOG_DEBUG2("SecureSocket SSL initialized (server=false)");
         return secure_socket;
     } else {
-        return std::make_unique<TCPSocket>(m_events, m_socketMultiplexer, family);
+        LOG_DEBUG2("Creating plaintext TCPSocket");
+        auto tcp_socket = std::make_unique<TCPSocket>(m_events, m_socketMultiplexer, family);
+        LOG_DEBUG2("TCPSocket constructed: %p", tcp_socket.get());
+        return tcp_socket;
     }
 }
 
