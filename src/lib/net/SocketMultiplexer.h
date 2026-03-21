@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 namespace inputleap {
 
@@ -108,8 +109,8 @@ private:
     std::condition_variable cv_job_list_lock_locked_;
     bool job_list_lock_lock_is_locked_ = false;
 
-    Thread* m_jobListLocker;
-    Thread* m_jobListLockLocker;
+    std::thread::id m_jobListLocker;
+    std::thread::id m_jobListLockLocker;
 
     SocketJobs m_socketJobs;
     SocketJobMap m_socketJobMap;

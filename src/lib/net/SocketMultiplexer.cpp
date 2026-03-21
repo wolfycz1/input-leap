@@ -47,9 +47,7 @@ public:
 
 SocketMultiplexer::SocketMultiplexer() :
     m_thread(nullptr),
-    m_update(false),
-    m_jobListLocker(nullptr),
-    m_jobListLockLocker(nullptr)
+    m_update(false)
 {
     // start thread
     m_thread = new Thread([this](){ service_thread(); });
@@ -66,8 +64,6 @@ SocketMultiplexer::~SocketMultiplexer()
     }
     m_thread->wait();
     delete m_thread;
-    delete m_jobListLocker;
-    delete m_jobListLockLocker;
 }
 
 void SocketMultiplexer::addSocket(ISocket* socket, std::unique_ptr<ISocketMultiplexerJob>&& job)
@@ -306,8 +302,7 @@ SocketMultiplexer::deleteCursor(JobCursor cursor)
 void
 SocketMultiplexer::lockJobListLock()
 {
-    const Thread& t = Thread::getCurrentThread();
-    LOG_DEBUG2("SocketMultiplexer::lockJobListLock() called thread=%p", (const void*)&t);
+    LOG_DEBUG2("SocketMultiplexer::lockJobListLock() called");
     std::unique_lock<std::mutex> lock(mutex_);
     LOG_DEBUG2("SocketMultiplexer::lockJobListLock(): mutex acquired");
 
@@ -319,9 +314,9 @@ SocketMultiplexer::lockJobListLock()
 
     // take ownership of the lock on the lock
     job_list_lock_lock_is_locked_ = true;
-    m_jobListLockLocker  = new Thread(Thread::getCurrentThread());
-    LOG_DEBUG2("lockJobListLock(): lock acquired, owner thread=%p",
-               m_jobListLockLocker);
+    //m_jobListLockLocker  = new Thread(Thread::getCurrentThread());
+    m_jobListLockLocker = std::this_thread::get_id();
+    LOG_DEBUG2("lockJobListLock(): lock acquired by current thread");
 
     LOG_DEBUG2("lockJobListLock() complete");
 }
@@ -329,28 +324,19 @@ SocketMultiplexer::lockJobListLock()
 void
 SocketMultiplexer::lockJobList()
 {
-    const Thread& t = Thread::getCurrentThread();
-    LOG_DEBUG2("SocketMultiplexer::lockJobList() called thread=%p", (const void*)&t);
+    LOG_DEBUG2("SocketMultiplexer::lockJobList() called");
     std::unique_lock<std::mutex> lock(mutex_);
     LOG_DEBUG2("lockJobList(): mutex acquired");
 
-    const Thread& t2 = Thread::getCurrentThread();
-    LOG_DEBUG2("lockJobList(): expected locker=%p, current thread=%p",
-               m_jobListLockLocker,
-               (const void*)&t2);
-
-    if (m_jobListLockLocker == nullptr) {
-        LOG_DEBUG2("lockJobList(): ERROR → m_jobListLockLocker is nullptr!");
-    } else if (!(*m_jobListLockLocker == Thread::getCurrentThread())) {
-        const Thread& t3 = Thread::getCurrentThread();
-        LOG_DEBUG2("lockJobList(): ERROR → thread mismatch! locker=%p current=%p",
-                   m_jobListLockLocker,
-                   (const void*)&t3);
+    // make sure we're the one that called lockJobListLock()
+    if (m_jobListLockLocker == std::thread::id()) {
+        LOG_DEBUG2("lockJobList(): ERROR -> m_jobListLockLocker is empty!");
+    } else if (m_jobListLockLocker != std::this_thread::get_id()) {
+        LOG_DEBUG2("lockJobList(): ERROR -> thread mismatch!");
     }
 
-    // make sure we're the one that called lockJobListLock()
-    assert(m_jobListLockLocker != nullptr);
-    assert(*m_jobListLockLocker == Thread::getCurrentThread());
+    assert(m_jobListLockLocker != std::thread::id());
+    assert(m_jobListLockLocker == std::this_thread::get_id());
 
     LOG_DEBUG2("lockJobList(): waiting for jobs_list_lock (currently=%d)",
                jobs_list_lock_is_locked_);
@@ -362,10 +348,9 @@ SocketMultiplexer::lockJobList()
     // take ownership of the lock
     jobs_list_lock_is_locked_ = true;
     m_jobListLocker     = m_jobListLockLocker;
-    m_jobListLockLocker = nullptr;
+    m_jobListLockLocker = std::thread::id();
 
-    LOG_DEBUG2("lockJobList(): ownership transferred → m_jobListLocker=%p",
-               m_jobListLocker);
+    LOG_DEBUG2("lockJobList(): ownership transferred");
 
     // release the lock on the lock
     job_list_lock_lock_is_locked_ = false;
@@ -373,7 +358,7 @@ SocketMultiplexer::lockJobList()
     cv_job_list_lock_locked_.notify_all();
     LOG_DEBUG2("lockJobList(): notified all waiting threads");
 
-    LOG_DEBUG2("lockJobList() EXIT");
+    LOG_DEBUG2("lockJobList() completed");
 }
 
 void
@@ -382,11 +367,10 @@ SocketMultiplexer::unlockJobList()
     std::lock_guard<std::mutex> lock(mutex_);
 
     // make sure we're the one that called lockJobList()
-    assert(*m_jobListLocker == Thread::getCurrentThread());
+    assert(m_jobListLocker == std::this_thread::get_id());
 
     // release the lock
-    delete m_jobListLocker;
-    m_jobListLocker = nullptr;
+    m_jobListLocker = std::thread::id();
     jobs_list_lock_is_locked_ = false;
     cv_jobs_list_lock_.notify_one();
 
