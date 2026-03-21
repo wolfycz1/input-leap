@@ -72,12 +72,14 @@ SocketMultiplexer::~SocketMultiplexer()
 
 void SocketMultiplexer::addSocket(ISocket* socket, std::unique_ptr<ISocketMultiplexerJob>&& job)
 {
+    LOG_DEBUG2("SocketMultiplexer::addSocket() called: socket=%p, job=%p", socket, job.get());
     assert(socket != nullptr);
     assert(job != nullptr);
 
     // prevent other threads from locking the job list
     lockJobListLock();
 
+    LOG_DEBUG2("addSocket: unblocking poll");
     // break thread out of poll
     m_thread->unblockPollSocket();
 
@@ -87,20 +89,24 @@ void SocketMultiplexer::addSocket(ISocket* socket, std::unique_ptr<ISocketMultip
     // insert/replace job
     SocketJobMap::iterator i = m_socketJobMap.find(socket);
     if (i == m_socketJobMap.end()) {
+        LOG_DEBUG2("addSocket: inserting NEW socket job");
         // we *must* put the job at the end so the order of jobs in
         // the list continue to match the order of jobs in pfds in
         // service_thread().
         JobCursor j = m_socketJobs.insert(m_socketJobs.end(), std::move(job));
         m_update     = true;
         m_socketJobMap.insert(std::make_pair(socket, j));
+        LOG_DEBUG2("addSocket: socket %p added to job list", socket);
     }
     else {
+        LOG_DEBUG2("addSocket: replacing EXISTING job for socket %p", socket);
         *(i->second) = std::move(job);
         m_update = true;
     }
 
     // unlock the job list
     unlockJobList();
+    LOG_DEBUG2("SocketMultiplexer::addSocket completed");
 }
 
 void
@@ -134,6 +140,7 @@ SocketMultiplexer::removeSocket(ISocket* socket)
 
 void SocketMultiplexer::service_thread()
 {
+    LOG_DEBUG2("SocketMultiplexer::service_thread() called");
     std::vector<IArchNetwork::PollEntry> pfds;
     IArchNetwork::PollEntry pfd;
 
@@ -144,7 +151,9 @@ void SocketMultiplexer::service_thread()
         // wait until there are jobs to handle
         {
             std::unique_lock<std::mutex> lock(mutex_);
+            LOG_DEBUG2("service_thread: waiting for jobs...");
             cv_jobs_ready_.wait(lock, [this](){ return jobs_are_ready_; });
+            LOG_DEBUG2("service_thread: jobs ready");
         }
 
         // lock the job list
@@ -153,6 +162,7 @@ void SocketMultiplexer::service_thread()
 
         // collect poll entries
         if (m_update) {
+            LOG_DEBUG2("service_thread: rebuilding poll list (m_update=true)");
             m_update = false;
             pfds.clear();
             pfds.reserve(m_socketJobMap.size());
@@ -174,24 +184,30 @@ void SocketMultiplexer::service_thread()
                 jobCursor = nextCursor(cursor);
             }
             deleteCursor(cursor);
+            LOG_DEBUG2("service_thread: poll list built with %zu entries", count);
         }
 
         int poll_status;
         try {
             // check for status
             if (!pfds.empty()) {
+                LOG_DEBUG2("service_thread: polling %zu sockets", pfds.size());
                 poll_status = ARCH->pollSocket(&pfds[0], static_cast<int>(pfds.size()), -1);
+                LOG_DEBUG2("service_thread: poll returned %d", poll_status);
             }
             else {
+                LOG_DEBUG2("service_thread: no sockets to poll");
                 poll_status = 0;
             }
         }
         catch (XArchNetwork& e) {
             LOG_WARN("error in socket multiplexer: %s", e.what());
+            LOG_DEBUG2("service_thread: poll exception caught");
             poll_status = 0;
         }
 
         if (poll_status != 0) {
+            LOG_DEBUG2("service_thread: processing poll events");
             // iterate over socket jobs, invoking each and saving the
             // new job.
             std::uint32_t i = 0;
@@ -206,14 +222,19 @@ void SocketMultiplexer::service_thread()
                     bool error = ((revents & (IArchNetwork::kPOLLERR |
                                               IArchNetwork::kPOLLNVAL)) != 0);
 
+                    LOG_DEBUG2("service_thread: job[%u] events: read=%d write=%d error=%d", i, read, write, error);
+
+
                     // run job
                     MultiplexerJobStatus status = (*jobCursor)->run(read, write, error);
 
                     if (!status.continue_servicing) {
+                        LOG_DEBUG2("service_thread: job[%u] requested stop", i);
                         std::lock_guard<std::mutex> lock(mutex_);
                         jobCursor->reset();
                         m_update = true;
                     } else if (status.new_job) {
+                        LOG_DEBUG2("service_thread: job[%u] replaced with new job", i);
                         std::lock_guard<std::mutex> lock(mutex_);
                         *jobCursor = std::move(status.new_job);
                         m_update = true;
@@ -231,6 +252,7 @@ void SocketMultiplexer::service_thread()
         for (SocketJobMap::iterator i = m_socketJobMap.begin();
                             i != m_socketJobMap.end();) {
             if (*(i->second) == nullptr) {
+                LOG_DEBUG2("service_thread: removing socket job %p", i->first);
                 m_socketJobs.erase(i->second);
                 m_socketJobMap.erase(i++);
                 m_update = true;
@@ -243,6 +265,7 @@ void SocketMultiplexer::service_thread()
         // unlock the job list
         unlockJobList();
     }
+    LOG_DEBUG2("SocketMultiplexer::service_thread finished");
 }
 
 SocketMultiplexer::JobCursor

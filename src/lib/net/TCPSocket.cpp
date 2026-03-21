@@ -396,10 +396,15 @@ void TCPSocket::removeJob()
 
 void TCPSocket::setJob(std::unique_ptr<ISocketMultiplexerJob>&& job)
 {
+    LOG_DEBUG2("TCPSocket::setJob() called: this=%p, job=%p", this, job.get());
     if (job.get() == nullptr) {
+        LOG_DEBUG2("setJob: received null job → removing existing job");
         removeJob();
+        LOG_DEBUG2("setJob: removeJob() completed");
     } else {
+        LOG_DEBUG2("setJob: adding job to multiplexer (socket=%p)", this);
         m_socketMultiplexer->addSocket(this, std::move(job));
+        LOG_DEBUG2("setJob: job successfully added to multiplexer");
     }
 }
 
