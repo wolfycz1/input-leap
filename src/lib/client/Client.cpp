@@ -566,16 +566,21 @@ Client::cleanupStream()
 void
 Client::handle_connected()
 {
+    LOG_DEBUG2("Client::handle_connected() called");
     LOG_DEBUG1("connected;  wait for hello");
     cleanupConnecting();
+    LOG_DEBUG2("cleanupConnecting() done");
     setupConnection();
+    LOG_DEBUG2("setupConnection() done");
 
     // reset clipboard state
     for (ClipboardID id = 0; id < kClipboardEnd; ++id) {
         m_ownClipboard[id]  = false;
         m_sentClipboard[id] = false;
         m_timeClipboard[id] = 0;
+        LOG_DEBUG2("Clipboard slot %d reset: own=false, sent=false, time=0", id);
     }
+    LOG_DEBUG2("All clipboard slots reset; handle_connected() completed");
 }
 
 void Client::handle_connection_failed(const Event& event)
@@ -648,40 +653,51 @@ void Client::handle_clipboard_grabbed(const Event& event)
 
 void Client::handle_hello()
 {
+    LOG_DEBUG2("Client::handle_hello() called");
     std::int16_t major, minor;
     if (!ProtocolUtil::readf(m_stream, kMsgHello, &major, &minor)) {
+        LOG_DEBUG2("Client::handle_hello() called");
         sendConnectionFailedEvent("Protocol error from server, check encryption settings");
         cleanupTimer();
         cleanupConnection();
+        LOG_DEBUG2("Connection cleanup after protocol error");
         return;
     }
 
     // check versions
     LOG_DEBUG1("got hello version %d.%d", major, minor);
-    if (major < kProtocolMajorVersion ||
-        (major == kProtocolMajorVersion && minor < kProtocolMinorVersion)) {
+    LOG_DEBUG2("Received server protocol version %d.%d", major, minor);
+    if (major < kProtocolMajorVersion || (major == kProtocolMajorVersion && minor < kProtocolMinorVersion)) {
+        LOG_DEBUG2("Server version too old → rejecting connection");
         sendConnectionFailedEvent(XIncompatibleClient(major, minor).what());
         cleanupTimer();
         cleanupConnection();
+        LOG_DEBUG2("Connection cleanup due to incompatible protocol version");
         return;
     }
 
     // say hello back
     LOG_DEBUG1("say hello version %d.%d", kProtocolMajorVersion, kProtocolMinorVersion);
+    LOG_DEBUG2("Sending hello back to server with version %d.%d", kProtocolMajorVersion, kProtocolMinorVersion);
     ProtocolUtil::writef(m_stream, kMsgHelloBack,
                             kProtocolMajorVersion,
                             kProtocolMinorVersion, &m_name);
+    LOG_DEBUG2("Hello back sent successfully");
 
     // now connected but waiting to complete handshake
     setupScreen();
+    LOG_DEBUG2("setupScreen() done");
     cleanupTimer();
+    LOG_DEBUG2("cleanupTimer() done");
 
     // make sure we process any remaining messages later.  we won't
     // receive another event for already pending messages so we fake
     // one.
     if (m_stream->isReady()) {
+        LOG_DEBUG2("Stream has pending input → input-ready event");
         m_events->add_event(EventType::STREAM_INPUT_READY, m_stream->get_event_target());
     }
+    LOG_DEBUG2("Client::handle_hello() completed successfully");
 }
 
 void Client::handle_suspend()
