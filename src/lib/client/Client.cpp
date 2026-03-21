@@ -129,7 +129,7 @@ Client::connect()
     }
 
     try {
-        LOG_DEBUG2(QString("Resolving server hostname: '%1'").arg(m_serverAddress.getHostname().c_str()));
+        LOG_DEBUG2("Resolving server hostname: %s", (m_serverAddress.getHostname().c_str()));
         // resolve the server hostname.  do this every time we connect
         // in case we couldn't resolve the address earlier or the address
         // has changed (which can happen frequently if this is a laptop
@@ -140,10 +140,10 @@ Client::connect()
         // m_serverAddress will be null if the hostname address is not reolved
         if (m_serverAddress.getAddress() != nullptr) {
           // to help users troubleshoot, show server host name (issue: 60)
-            LOG_NOTE(QString("Connecting to '%1': %2:%3")
-                .arg(m_serverAddress.getHostname().c_str())
-                .arg(ARCH->addrToString(m_serverAddress.getAddress()).c_str())
-                .arg(m_serverAddress.getPort()));
+            LOG_NOTE("Connecting to '%s': %s:%i",
+                m_serverAddress.getHostname().c_str(),
+                ARCH->addrToString(m_serverAddress.getAddress()).c_str(),
+                m_serverAddress.getPort());
             LOG_DEBUG2("Server address resolved successfully");
         } else {
             LOG_DEBUG2("Server address could not be resolved → connection may fail");
@@ -166,7 +166,7 @@ Client::connect()
         LOG_DEBUG2("Socket connect initiated");
     }
     catch (XBase& e) {
-        LOG_DEBUG2(QString("Exception caught during connect: %1").arg(e.what()));
+        LOG_DEBUG2("Exception caught during connect: %s", e.what());
         cleanupTimer();
         cleanupConnecting();
         cleanupStream();
