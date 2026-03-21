@@ -169,6 +169,7 @@ void SocketMultiplexer::service_thread()
 
             JobCursor cursor    = newCursor();
             JobCursor jobCursor = nextCursor(cursor);
+            size_t count = 0;
             while (jobCursor != m_socketJobs.end()) {
                 if (*jobCursor) {
                     pfd.m_socket = (*jobCursor)->getSocket();
@@ -180,6 +181,7 @@ void SocketMultiplexer::service_thread()
                         pfd.m_events |= IArchNetwork::kPOLLOUT;
                     }
                     pfds.push_back(pfd);
+                    ++count;
                 }
                 jobCursor = nextCursor(cursor);
             }
