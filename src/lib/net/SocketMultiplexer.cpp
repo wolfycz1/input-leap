@@ -306,7 +306,8 @@ SocketMultiplexer::deleteCursor(JobCursor cursor)
 void
 SocketMultiplexer::lockJobListLock()
 {
-    LOG_DEBUG2("SocketMultiplexer::lockJobListLock() called thread=%p", (void*)&Thread::getCurrentThread());
+    const Thread& t = Thread::getCurrentThread();
+    LOG_DEBUG2("SocketMultiplexer::lockJobListLock() called thread=%p", (const void*)&t);
     std::unique_lock<std::mutex> lock(mutex_);
     LOG_DEBUG2("SocketMultiplexer::lockJobListLock(): mutex acquired");
 
@@ -328,20 +329,23 @@ SocketMultiplexer::lockJobListLock()
 void
 SocketMultiplexer::lockJobList()
 {
-    LOG_DEBUG2("SocketMultiplexer::lockJobList() called thread=%p", (void*)&Thread::getCurrentThread());
+    const Thread& t = Thread::getCurrentThread();
+    LOG_DEBUG2("SocketMultiplexer::lockJobList() called thread=%p", (const void*)&t);
     std::unique_lock<std::mutex> lock(mutex_);
     LOG_DEBUG2("lockJobList(): mutex acquired");
 
+    const Thread& t2 = Thread::getCurrentThread();
     LOG_DEBUG2("lockJobList(): expected locker=%p, current thread=%p",
                m_jobListLockLocker,
-               (void*)&Thread::getCurrentThread());
+               (const void*)&t2);
 
     if (m_jobListLockLocker == nullptr) {
         LOG_DEBUG2("lockJobList(): ERROR → m_jobListLockLocker is nullptr!");
     } else if (!(*m_jobListLockLocker == Thread::getCurrentThread())) {
+        const Thread& t3 = Thread::getCurrentThread();
         LOG_DEBUG2("lockJobList(): ERROR → thread mismatch! locker=%p current=%p",
                    m_jobListLockLocker,
-                   (void*)&Thread::getCurrentThread());
+                   (const void*)&t3);
     }
 
     // make sure we're the one that called lockJobListLock()
