@@ -874,9 +874,9 @@ void MainWindow::stopDesktop()
 
 void MainWindow::cmd_app_finished(int exitCode, QProcess::ExitStatus status)
 {
-    appendLogDebug(QString("MainWindow::cmd_app_finished called. [int]exitcode=%1, [QProcess::ExitStatus]=%2"))
+    appendLogDebug(QString("MainWindow::cmd_app_finished called. [int]exitcode=%1, [QProcess::ExitStatus]=%2")
         .arg(exitCode)
-        .arg(status == QProcess::NormalExit ? "NormalExit" : "CrashExit");
+        .arg(status == QProcess::NormalExit ? "NormalExit" : "CrashExit"));
     if (exitCode == 0) {
         appendLogInfo(QString("process exited normally"));
         appendLogDebug("Process reported success (exitCode == 0)");
