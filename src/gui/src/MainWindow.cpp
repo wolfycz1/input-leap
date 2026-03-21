@@ -872,22 +872,34 @@ void MainWindow::stopDesktop()
     cmd_app_process_ = nullptr;
 }
 
-void MainWindow::cmd_app_finished(int exitCode, QProcess::ExitStatus)
+void MainWindow::cmd_app_finished(int exitCode, QProcess::ExitStatus status)
 {
+    appendLogDebug(QString("MainWindow::cmd_app_finished called. [int]exitcode=%1, [QProcess::ExitStatus]=%2"))
+        .arg(exitCode)
+        .arg(status == QProcess::NormalExit ? "NormalExit" : "CrashExit");
     if (exitCode == 0) {
         appendLogInfo(QString("process exited normally"));
+        appendLogDebug("Process reported success (exitCode == 0)");
     }
     else {
         appendLogError(QString("process exited with error code: %1").arg(exitCode));
+        appendLogDebug("Process reported failure (exitCode != 0)");
     }
 
+    appendLogDebug(QString("Expected running state = %1")
+               .arg(m_ExpectedRunningState == kStarted ? "kStarted" : "kStopped"));
+
     if (m_ExpectedRunningState == kStarted) {
+        appendLogDebug("Process is expected to be running → scheduling restart");
+
         QTimer::singleShot(1000, this, &MainWindow::start_cmd_app);
         appendLogInfo(QString("detected process not running, auto restarting"));
     }
     else {
+        appendLogDebug("Process is NOT expected to be running → setting DISCONNECTED state");
         set_connection_state(AppConnectionState::DISCONNECTED);
     }
+    appendLogDebug("MainWindow::cmd_app_finished completed");
 }
 
 void MainWindow::set_connection_state(AppConnectionState state)
