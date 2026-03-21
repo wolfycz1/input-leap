@@ -306,35 +306,70 @@ SocketMultiplexer::deleteCursor(JobCursor cursor)
 void
 SocketMultiplexer::lockJobListLock()
 {
+    LOG_DEBUG2("SocketMultiplexer::lockJobListLock() called thread=%p", Thread::getCurrentThread());
     std::unique_lock<std::mutex> lock(mutex_);
+    LOG_DEBUG2("SocketMultiplexer::lockJobListLock(): mutex acquired");
 
+    LOG_DEBUG2("lockJobListLock(): waiting for job_list_lock_lock (currently=%d)",
+               job_list_lock_lock_is_locked_);
     // wait for the lock on the lock
     cv_job_list_lock_locked_.wait(lock, [this](){ return !job_list_lock_lock_is_locked_; });
+    LOG_DEBUG2("lockJobListLock(): wait finished, acquiring lock");
 
     // take ownership of the lock on the lock
     job_list_lock_lock_is_locked_ = true;
     m_jobListLockLocker  = new Thread(Thread::getCurrentThread());
+    LOG_DEBUG2("lockJobListLock(): lock acquired, owner thread=%p",
+               m_jobListLockLocker);
+
+    LOG_DEBUG2("lockJobListLock() complete");
 }
 
 void
 SocketMultiplexer::lockJobList()
 {
+    LOG_DEBUG2("SocketMultiplexer::lockJobList() called thread=%p", Thread::getCurrentThread());
     std::unique_lock<std::mutex> lock(mutex_);
+    LOG_DEBUG2("lockJobList(): mutex acquired");
+
+    LOG_DEBUG2("lockJobList(): expected locker=%p, current thread=%p",
+               m_jobListLockLocker,
+               Thread::getCurrentThread());
+
+    if (m_jobListLockLocker == nullptr) {
+        LOG_DEBUG2("lockJobList(): ERROR → m_jobListLockLocker is nullptr!");
+    } else if (!(*m_jobListLockLocker == Thread::getCurrentThread())) {
+        LOG_DEBUG2("lockJobList(): ERROR → thread mismatch! locker=%p current=%p",
+                   m_jobListLockLocker,
+                   Thread::getCurrentThread());
+    }
 
     // make sure we're the one that called lockJobListLock()
+    assert(m_jobListLockLocker != nullptr);
     assert(*m_jobListLockLocker == Thread::getCurrentThread());
 
+    LOG_DEBUG2("lockJobList(): waiting for jobs_list_lock (currently=%d)",
+               jobs_list_lock_is_locked_);
     // wait for the job list lock
     cv_jobs_list_lock_.wait(lock, [this]() { return !jobs_list_lock_is_locked_; });
+
+    LOG_DEBUG2("lockJobList(): wait finished, acquiring job list lock");
 
     // take ownership of the lock
     jobs_list_lock_is_locked_ = true;
     m_jobListLocker     = m_jobListLockLocker;
     m_jobListLockLocker = nullptr;
 
+    LOG_DEBUG2("lockJobList(): ownership transferred → m_jobListLocker=%p",
+               m_jobListLocker);
+
     // release the lock on the lock
     job_list_lock_lock_is_locked_ = false;
+    LOG_DEBUG2("lockJobList(): released job_list_lock_lock");
     cv_job_list_lock_locked_.notify_all();
+    LOG_DEBUG2("lockJobList(): notified all waiting threads");
+
+    LOG_DEBUG2("lockJobList() EXIT");
 }
 
 void
