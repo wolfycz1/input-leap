@@ -109,21 +109,27 @@ Client::~Client()
 void
 Client::connect()
 {
+    LOG_DEBUG2("Client::connect() called");
+
     if (m_stream != nullptr) {
+        LOG_DEBUG2("m_stream already exists → returning early");
         return;
     }
     if (m_suspended) {
+        LOG_DEBUG2("Client is suspended → setting m_connectOnResume=true and returning");
         m_connectOnResume = true;
         return;
     }
 
     auto security_level = ConnectionSecurityLevel::PLAINTEXT;
     if (m_useSecureNetwork) {
+        LOG_DEBUG2("Using secure network → setting security_level = ENCRYPTED_AUTHENTICATED");
         // client always authenticates server
         security_level = ConnectionSecurityLevel::ENCRYPTED_AUTHENTICATED;
     }
 
     try {
+        LOG_DEBUG2(QString("Resolving server hostname: '%1'").arg(m_serverAddress.getHostname().c_str()));
         // resolve the server hostname.  do this every time we connect
         // in case we couldn't resolve the address earlier or the address
         // has changed (which can happen frequently if this is a laptop
@@ -134,10 +140,13 @@ Client::connect()
         // m_serverAddress will be null if the hostname address is not reolved
         if (m_serverAddress.getAddress() != nullptr) {
           // to help users troubleshoot, show server host name (issue: 60)
-          LOG_NOTE("connecting to '%s': %s:%i",
-          m_serverAddress.getHostname().c_str(),
-          ARCH->addrToString(m_serverAddress.getAddress()).c_str(),
-          m_serverAddress.getPort());
+            LOG_NOTE(QString("Connecting to '%1': %2:%3")
+                .arg(m_serverAddress.getHostname().c_str())
+                .arg(ARCH->addrToString(m_serverAddress.getAddress()).c_str())
+                .arg(m_serverAddress.getPort()));
+            LOG_DEBUG2("Server address resolved successfully");
+        } else {
+            LOG_DEBUG2("Server address could not be resolved → connection may fail");
         }
 
         // create the socket
@@ -146,14 +155,18 @@ Client::connect()
         // filter socket messages, including a packetizing filter
         auto socket_ptr = socket.get();
         m_stream = new PacketStreamFilter(m_events, std::move(socket));
+        LOG_DEBUG2("PacketStreamFilter created and m_stream initialized");
 
         // connect
         LOG_DEBUG1("connecting to server");
+        LOG_DEBUG2("Starting socket connect");
         setupConnecting();
         setupTimer();
         socket_ptr->connect(m_serverAddress);
+        LOG_DEBUG2("Socket connect initiated");
     }
     catch (XBase& e) {
+        LOG_DEBUG2(QString("Exception caught during connect: %1").arg(e.what()));
         cleanupTimer();
         cleanupConnecting();
         cleanupStream();
@@ -161,6 +174,7 @@ Client::connect()
         sendConnectionFailedEvent(e.what());
         return;
     }
+    LOG_DEBUG2("Client::connect() completed");
 }
 
 void
