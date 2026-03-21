@@ -40,16 +40,20 @@ TCPSocket::TCPSocket(IEventQueue* events, SocketMultiplexer* socketMultiplexer, 
     m_events(events),
     m_socketMultiplexer(socketMultiplexer)
 {
+    LOG_DEBUG2("TCPSocket constructor called (new socket), family=%d", family);
     try {
         m_socket = ARCH->newSocket(family, IArchNetwork::kSTREAM);
+        LOG_DEBUG2("ARCH->newSocket() succeeded: %p", m_socket);
     }
     catch (XArchNetwork& e) {
+        LOG_DEBUG2("ARCH->newSocket() failed: %s", e.what());
         throw XSocketCreate(e.what());
     }
 
     LOG_DEBUG("Opening new socket: %p", m_socket);
 
     init();
+    LOG_DEBUG2("Socket init() completed");
 }
 
 TCPSocket::TCPSocket(IEventQueue* events, SocketMultiplexer* socketMultiplexer, ArchSocket socket) :
@@ -58,14 +62,18 @@ TCPSocket::TCPSocket(IEventQueue* events, SocketMultiplexer* socketMultiplexer, 
     m_socket(socket),
     m_socketMultiplexer(socketMultiplexer)
 {
+    LOG_DEBUG2("TCPSocket constructor called (existing socket): %p", m_socket);
     assert(m_socket != nullptr);
 
     LOG_DEBUG("Opening new socket: %p", m_socket);
 
     // socket starts in connected state
     init();
+    LOG_DEBUG2("Socket init() completed");
     onConnected();
+    LOG_DEBUG2("Socket onConnected() called");
     setJob(newJob());
+    LOG_DEBUG2("Job set for socket");
 }
 
 TCPSocket::~TCPSocket()
