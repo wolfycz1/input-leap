@@ -452,17 +452,32 @@ void
 Client::setupConnecting()
 {
     assert(m_stream != nullptr);
+    LOG_DEBUG2("Client::setupConnecting() called");
 
     if (m_args.m_enableCrypto) {
         m_events->add_handler(EventType::DATA_SOCKET_SECURE_CONNECTED, m_stream->get_event_target(),
-                              [this](const auto& e){ handle_connected(); });
+            [this](const auto& e){
+            LOG_DEBUG2("DATA_SOCKET_SECURE_CONNECTED event triggered");
+            handle_connected();
+        });
+        LOG_DEBUG2("Handler added for DATA_SOCKET_SECURE_CONNECTED");
     }
     else {
         m_events->add_handler(EventType::DATA_SOCKET_CONNECTED, m_stream->get_event_target(),
-                              [this](const auto& e){ handle_connected(); });
+            [this](const auto& e){
+            LOG_DEBUG2("DATA_SOCKET_CONNECTED event triggered");
+            handle_connected();
+        });
+        LOG_DEBUG2("DATA_SOCKET_CONNECTED event triggered");
     }
     m_events->add_handler(EventType::DATA_SOCKET_CONNECTION_FAILED, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_connection_failed(e); });
+        [this](const auto& e){
+        LOG_DEBUG2("DATA_SOCKET_CONNECTION_FAILED event triggered");
+        handle_connection_failed(e);
+    });
+    LOG_DEBUG2("Handler added for DATA_SOCKET_CONNECTION_FAILED");
+
+    LOG_DEBUG2("Client::setupConnecting() completed successfully");
 }
 
 void
