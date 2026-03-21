@@ -469,19 +469,51 @@ void
 Client::setupConnection()
 {
     assert(m_stream != nullptr);
+    LOG_DEBUG2("Client::setupConnection() called");
 
     m_events->add_handler(EventType::SOCKET_DISCONNECTED, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_disconnected(); });
+        [this](const auto& e){
+        LOG_DEBUG2("SOCKET_DISCONNECTED event triggered");
+        handle_disconnected();
+    });
+    LOG_DEBUG2("Handler added for SOCKET_DISCONNECTED");
+
     m_events->add_handler(EventType::STREAM_INPUT_READY, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_hello(); });
+        [this](const auto& e){
+            LOG_DEBUG2("STREAM_INPUT_READY event triggered");
+            handle_hello();
+    });
+    LOG_DEBUG2("Handler added for STREAM_INPUT_READY");
+
     m_events->add_handler(EventType::STREAM_OUTPUT_ERROR, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_output_error(); });
+        [this](const auto& e){
+        LOG_DEBUG2("STREAM_OUTPUT_ERROR event triggered");
+        handle_output_error();
+    });
+    LOG_DEBUG2("Handler added for STREAM_OUTPUT_ERROR");
+
     m_events->add_handler(EventType::STREAM_INPUT_SHUTDOWN, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_disconnected(); });
+        [this](const auto& e){
+        LOG_DEBUG2("STREAM_INPUT_SHUTDOWN event triggered");
+        handle_disconnected();
+    });
+    LOG_DEBUG2("Handler added for STREAM_INPUT_SHUTDOWN");
+
     m_events->add_handler(EventType::STREAM_OUTPUT_SHUTDOWN, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_disconnected(); });
+        [this](const auto& e){
+        LOG_DEBUG2("STREAM_OUTPUT_SHUTDOWN event triggered");
+        handle_disconnected(); 
+    });
+    LOG_DEBUG2("Handler added for STREAM_OUTPUT_SHUTDOWN");
+
     m_events->add_handler(EventType::SOCKET_STOP_RETRY, m_stream->get_event_target(),
-                          [this](const auto& e){ handle_stop_retry(); });
+        [this](const auto& e){ 
+        LOG_DEBUG2("SOCKET_STOP_RETRY event triggered");
+        handle_stop_retry(); 
+    });
+    LOG_DEBUG2("Handler added for SOCKET_STOP_RETRY");
+
+    LOG_DEBUG2("Client::setupConnection() completed successfully");
 }
 
 void
