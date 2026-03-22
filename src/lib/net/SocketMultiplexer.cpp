@@ -108,6 +108,7 @@ void SocketMultiplexer::addSocket(ISocket* socket, std::unique_ptr<ISocketMultip
 void
 SocketMultiplexer::removeSocket(ISocket* socket)
 {
+    LOG_DEBUG2("SocketMultiplexer::removeSocket called");
     assert(socket != nullptr);
 
     // prevent other threads from locking the job list
@@ -132,6 +133,7 @@ SocketMultiplexer::removeSocket(ISocket* socket)
 
     // unlock the job list
     unlockJobList();
+    LOG_DEBUG2("SocketMultiplexer::removeSocket completed");
 }
 
 void SocketMultiplexer::service_thread()
@@ -269,13 +271,16 @@ void SocketMultiplexer::service_thread()
 SocketMultiplexer::JobCursor
 SocketMultiplexer::newCursor()
 {
+    LOG_DEBUG2("SocketMultiplexer::newCursor called");
     std::lock_guard<std::mutex> lock(mutex_);
     return m_socketJobs.insert(m_socketJobs.begin(), std::make_unique<CursorMultiplexerJob>());
+    LOG_DEBUG2("SocketMultiplexer::newCursor completed");
 }
 
 SocketMultiplexer::JobCursor
 SocketMultiplexer::nextCursor(JobCursor cursor)
 {
+    LOG_DEBUG2("SocketMultiplexer::nextCursor called");
     std::lock_guard<std::mutex> lock(mutex_);
     JobCursor j = m_socketJobs.end();
     JobCursor i = cursor;
@@ -290,13 +295,16 @@ SocketMultiplexer::nextCursor(JobCursor cursor)
         }
     }
     return j;
+    LOG_DEBUG2("SocketMultiplexer::nextCursor completed");
 }
 
 void
 SocketMultiplexer::deleteCursor(JobCursor cursor)
 {
+    LOG_DEBUG2("SocketMultiplexer::deleteCursor called");
     std::lock_guard<std::mutex> lock(mutex_);
     m_socketJobs.erase(cursor);
+    LOG_DEBUG2("SocketMultiplexer::deleteCursor completed");
 }
 
 void
@@ -306,8 +314,7 @@ SocketMultiplexer::lockJobListLock()
     std::unique_lock<std::mutex> lock(mutex_);
     LOG_DEBUG2("SocketMultiplexer::lockJobListLock(): mutex acquired");
 
-    LOG_DEBUG2("lockJobListLock(): waiting for job_list_lock_lock (currently=%d)",
-               job_list_lock_lock_is_locked_);
+    LOG_DEBUG2("lockJobListLock(): waiting for job_list_lock_lock");
     // wait for the lock on the lock
     cv_job_list_lock_locked_.wait(lock, [this](){ return !job_list_lock_lock_is_locked_; });
     LOG_DEBUG2("lockJobListLock(): wait finished, acquiring lock");
@@ -338,8 +345,7 @@ SocketMultiplexer::lockJobList()
     assert(m_jobListLockLocker != std::thread::id());
     assert(m_jobListLockLocker == std::this_thread::get_id());
 
-    LOG_DEBUG2("lockJobList(): waiting for jobs_list_lock (currently=%d)",
-               jobs_list_lock_is_locked_);
+    LOG_DEBUG2("lockJobList(): waiting for jobs_list_lock");
     // wait for the job list lock
     cv_jobs_list_lock_.wait(lock, [this]() { return !jobs_list_lock_is_locked_; });
 
